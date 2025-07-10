@@ -7,28 +7,64 @@ class DashboardProvider extends ChangeNotifier {
   List<ActivityLog> _recentActivities = [];
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isInitialized = false;
 
   Map<String, int> get stats => _stats;
   List<ActivityLog> get recentActivities => _recentActivities;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get isInitialized => _isInitialized;
 
   final DatabaseService _databaseService = DatabaseService();
 
   Future<void> loadDashboardData() async {
+    if (_isLoading) return; // Prevent concurrent loading
+
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
     try {
-      // Load statistics
-      _stats = await _databaseService.getDashboardStats();
+      // Initialize default values first
+      _stats = {
+        'totalItems': 0,
+        'totalStock': 0,
+        'lowStockItems': 0,
+        'outOfStockItems': 0,
+        'totalCategories': 0,
+        'todayIncoming': 0,
+        'todayOutgoing': 0,
+      };
+      _recentActivities = [];
 
-      // Load recent activities
-      _recentActivities = await _databaseService.getRecentActivityLogs(10);
+      // Load statistics with timeout
+      final statsResult = await Future.any([
+        _databaseService.getDashboardStats(),
+        Future.delayed(const Duration(seconds: 10), () => _stats),
+      ]);
 
+      if (statsResult.isNotEmpty) {
+        _stats = statsResult;
+      }
+
+      // Load recent activities with timeout
+      try {
+        final activitiesResult = await Future.any([
+          _databaseService.getRecentActivityLogs(10),
+          Future.delayed(const Duration(seconds: 5), () => <ActivityLog>[]),
+        ]);
+        _recentActivities = activitiesResult;
+      } catch (e) {
+        debugPrint('Failed to load activities: $e');
+        _recentActivities = [];
+      }
+
+      _isInitialized = true;
       _errorMessage = null;
     } catch (e) {
+      debugPrint('Dashboard load error: $e');
       _errorMessage = 'Gagal memuat data dashboard: $e';
+      _isInitialized = true; // Mark as initialized even on error
     }
 
     _isLoading = false;

@@ -149,6 +149,105 @@ class TransactionProvider extends ChangeNotifier {
         .fold(0, (total, t) => total + t.quantity);
   }
 
+  Future<bool> updateTransaction(
+    app_transaction.Transaction transaction,
+    int userId,
+  ) async {
+    try {
+      // Check if item exists and has enough stock for outgoing transactions
+      final item = await _databaseService.getItemById(transaction.itemId);
+      if (item == null) {
+        _errorMessage = 'Barang tidak ditemukan';
+        notifyListeners();
+        return false;
+      }
+
+      // Get current transaction to calculate stock difference
+      final currentTransaction = await _databaseService.getTransactionById(
+        transaction.id!,
+      );
+      if (currentTransaction == null) {
+        _errorMessage = 'Transaksi tidak ditemukan';
+        notifyListeners();
+        return false;
+      }
+
+      // Calculate stock after reverting current transaction
+      int availableStock = item.currentStock;
+      if (currentTransaction.type == app_transaction.TransactionType.incoming) {
+        availableStock -= currentTransaction.quantity;
+      } else {
+        availableStock += currentTransaction.quantity;
+      }
+
+      // Check if new transaction is valid
+      if (transaction.type == app_transaction.TransactionType.outgoing &&
+          availableStock < transaction.quantity) {
+        _errorMessage =
+            'Stok tidak mencukupi. Stok tersedia setelah perubahan: $availableStock';
+        notifyListeners();
+        return false;
+      }
+
+      await _databaseService.updateTransaction(transaction);
+
+      // Log activity
+      await _databaseService.insertActivityLog(
+        ActivityLog(
+          userId: userId,
+          action: 'Update Transaction',
+          description:
+              'Update ${transaction.type.displayName} - ${item.name}: ${transaction.quantity}',
+          timestamp: DateTime.now(),
+        ),
+      );
+
+      await loadTransactions();
+      _errorMessage = null;
+      return true;
+    } catch (e) {
+      _errorMessage = 'Gagal mengupdate transaksi: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteTransaction(int transactionId, int userId) async {
+    try {
+      // Get transaction details for logging
+      final transaction = await _databaseService.getTransactionById(
+        transactionId,
+      );
+      if (transaction == null) {
+        _errorMessage = 'Transaksi tidak ditemukan';
+        notifyListeners();
+        return false;
+      }
+
+      final item = await _databaseService.getItemById(transaction.itemId);
+      await _databaseService.deleteTransaction(transactionId);
+
+      // Log activity
+      await _databaseService.insertActivityLog(
+        ActivityLog(
+          userId: userId,
+          action: 'Delete Transaction',
+          description:
+              'Delete ${transaction.type.displayName} - ${item?.name ?? 'Unknown'}: ${transaction.quantity}',
+          timestamp: DateTime.now(),
+        ),
+      );
+
+      await loadTransactions();
+      _errorMessage = null;
+      return true;
+    } catch (e) {
+      _errorMessage = 'Gagal menghapus transaksi: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
   void clearError() {
     _errorMessage = null;
     notifyListeners();

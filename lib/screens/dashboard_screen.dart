@@ -5,7 +5,6 @@ import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/item_provider.dart';
 import '../providers/transaction_provider.dart';
-import '../models/user.dart';
 import 'items_screen.dart';
 import 'transactions_screen.dart';
 import 'reports_screen.dart';
@@ -27,27 +26,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
+      if (mounted) {
+        _loadData();
+      }
     });
   }
 
   Future<void> _loadData() async {
-    final dashboardProvider = Provider.of<DashboardProvider>(
-      context,
-      listen: false,
-    );
-    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-    final transactionProvider = Provider.of<TransactionProvider>(
-      context,
-      listen: false,
-    );
+    if (!mounted) return;
 
-    await Future.wait([
-      dashboardProvider.loadDashboardData(),
-      itemProvider.loadItems(),
-      itemProvider.loadCategories(),
-      transactionProvider.loadTransactions(),
-    ]);
+    try {
+      final dashboardProvider = Provider.of<DashboardProvider>(
+        context,
+        listen: false,
+      );
+      final itemProvider = Provider.of<ItemProvider>(context, listen: false);
+      final transactionProvider = Provider.of<TransactionProvider>(
+        context,
+        listen: false,
+      );
+
+      // Load data with timeout and error handling
+      await Future.wait([
+        dashboardProvider.loadDashboardData(),
+        itemProvider.loadItems().catchError((e) {
+          debugPrint('Failed to load items: $e');
+          return Future.value();
+        }),
+        itemProvider.loadCategories().catchError((e) {
+          debugPrint('Failed to load categories: $e');
+          return Future.value();
+        }),
+        transactionProvider.loadTransactions().catchError((e) {
+          debugPrint('Failed to load transactions: $e');
+          return Future.value();
+        }),
+      ]).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          debugPrint('Data loading timeout');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Loading timeout, some data may not be available',
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return <void>[];
+        },
+      );
+    } catch (e) {
+      debugPrint('Error loading dashboard data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -59,132 +100,145 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return const LoginScreen();
         }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Inventaris QR'),
-            backgroundColor: Colors.blue.shade600,
-            foregroundColor: Colors.white,
-            actions: [
-              if (user.canScanBarcode)
-                IconButton(
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ScannerScreen(),
-                      ),
-                    );
-                  },
-                ),
-              PopupMenuButton<String>(
-                onSelected: (value) async {
-                  if (value == 'logout') {
-                    await authProvider.logout();
-                    if (context.mounted) {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
-                      );
-                    }
-                  }
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: Colors.blue.shade100,
-                          child: Text(
-                            user.fullName.isNotEmpty
-                                ? user.fullName[0].toUpperCase()
-                                : 'U',
-                            style: TextStyle(color: Colors.blue.shade700),
+        return Consumer<DashboardProvider>(
+          builder: (context, dashboardProvider, child) {
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('Inventaris QR'),
+                backgroundColor: Colors.blue.shade600,
+                foregroundColor: Colors.white,
+                actions: [
+                  if (user.canScanBarcode)
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ScannerScreen(),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        );
+                      },
+                    ),
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'logout') {
+                        _showLogoutDialog();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        child: Row(
                           children: [
-                            Text(
-                              user.fullName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              user.role.displayName,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
+                            const Icon(Icons.person),
+                            const SizedBox(width: 8),
+                            Text(user.fullName),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(
-                    value: 'logout',
-                    child: Row(
-                      children: [
-                        Icon(Icons.logout),
-                        SizedBox(width: 12),
-                        Text('Logout'),
-                      ],
-                    ),
+                      ),
+                      PopupMenuItem(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.badge),
+                            const SizedBox(width: 8),
+                            Text(user.role.name),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: 'logout',
+                        child: Row(
+                          children: [
+                            Icon(Icons.logout),
+                            SizedBox(width: 8),
+                            Text('Logout'),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-          body: IndexedStack(
-            index: _currentIndex,
-            children: [
-              const DashboardContent(),
-              const ItemsScreen(),
-              const TransactionsScreen(),
-              const ReportsScreen(),
-              if (user.canManageUsers) const UsersScreen(),
-            ],
-          ),
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: Colors.blue.shade600,
-            items: [
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard),
-                label: 'Dashboard',
+              body: IndexedStack(
+                index: _currentIndex,
+                children: [
+                  const DashboardContent(),
+                  if (user.canViewItems) const ItemsScreen(),
+                  if (user.canViewTransactions) const TransactionsScreen(),
+                  if (user.canViewReports) const ReportsScreen(),
+                  if (user.canManageUsers) const UsersScreen(),
+                ],
               ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.inventory_2),
-                label: 'Barang',
+              bottomNavigationBar: BottomNavigationBar(
+                type: BottomNavigationBarType.fixed,
+                currentIndex: _currentIndex,
+                onTap: (index) {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+                items: [
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.dashboard),
+                    label: 'Dashboard',
+                  ),
+                  if (user.canViewItems)
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.inventory_2),
+                      label: 'Barang',
+                    ),
+                  if (user.canViewTransactions)
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.swap_horiz),
+                      label: 'Transaksi',
+                    ),
+                  if (user.canViewReports)
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.assessment),
+                      label: 'Laporan',
+                    ),
+                  if (user.canManageUsers)
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.people),
+                      label: 'Pengguna',
+                    ),
+                ],
               ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.swap_horiz),
-                label: 'Transaksi',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.assessment),
-                label: 'Laporan',
-              ),
-              if (user.canManageUsers)
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.people),
-                  label: 'Pengguna',
-                ),
-            ],
-          ),
+            );
+          },
         );
       },
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Apakah Anda yakin ingin logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
+              authProvider.logout();
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            },
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -218,8 +272,43 @@ class DashboardContent extends StatelessWidget {
             // Stats Cards
             Consumer<DashboardProvider>(
               builder: (context, dashboardProvider, child) {
-                if (dashboardProvider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                if (dashboardProvider.isLoading &&
+                    !dashboardProvider.isInitialized) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+
+                if (dashboardProvider.errorMessage != null) {
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 48,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Error: ${dashboardProvider.errorMessage}',
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              dashboardProvider.loadDashboardData();
+                            },
+                            child: const Text('Coba Lagi'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 }
 
                 return Column(

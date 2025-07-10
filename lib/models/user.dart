@@ -72,6 +72,8 @@ class User {
   bool get canViewReports => role.canViewReports;
   bool get canScanBarcode => role.canScanBarcode;
   bool get canManageTransactions => role.canManageTransactions;
+  bool get canViewItems => role.canViewItems;
+  bool get canViewTransactions => role.canViewTransactions;
 }
 
 enum UserRole { admin, petugas, viewer }
@@ -94,4 +96,6 @@ extension UserRoleExtension on UserRole {
   bool get canScanBarcode => this == UserRole.admin || this == UserRole.petugas;
   bool get canManageTransactions =>
       this == UserRole.admin || this == UserRole.petugas;
+  bool get canViewItems => true; // All users can view items
+  bool get canViewTransactions => true; // All users can view transactions
 }

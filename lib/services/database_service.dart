@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import '../models/user.dart';
 import '../models/item.dart';
 import '../models/category.dart';
@@ -20,8 +21,21 @@ class DatabaseService {
   }
 
   Future<Database> _initDatabase() async {
-    String path = join(await getDatabasesPath(), 'inventaris.db');
-    return await openDatabase(path, version: 1, onCreate: _onCreate);
+    try {
+      String path = join(await getDatabasesPath(), 'inventaris.db');
+      return await openDatabase(
+        path,
+        version: 1,
+        onCreate: _onCreate,
+        onOpen: (db) async {
+          // Enable foreign key constraints
+          await db.execute('PRAGMA foreign_keys = ON');
+        },
+      );
+    } catch (e) {
+      debugPrint('Database initialization error: $e');
+      rethrow;
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -140,20 +154,30 @@ class DatabaseService {
   }
 
   Future<User?> authenticateUser(String username, String password) async {
-    final db = await database;
-    final maps = await db.query(
-      'users',
-      where: 'username = ? AND password = ?',
-      whereArgs: [username, password],
-    );
+    try {
+      final db = await database;
+      final maps = await db.query(
+        'users',
+        where: 'username = ? AND password = ?',
+        whereArgs: [username, password],
+      );
 
-    if (maps.isNotEmpty) {
-      final user = User.fromMap(maps.first);
-      // Update last login
-      await updateUserLastLogin(user.id!);
-      return user;
+      if (maps.isNotEmpty) {
+        final user = User.fromMap(maps.first);
+        // Update last login with error handling
+        try {
+          await updateUserLastLogin(user.id!);
+        } catch (e) {
+          debugPrint('Failed to update last login: $e');
+          // Don't fail authentication if last login update fails
+        }
+        return user;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Authentication error: $e');
+      return null;
     }
-    return null;
   }
 
   Future<int> updateUserLastLogin(int userId) async {
@@ -397,6 +421,77 @@ class DatabaseService {
     );
   }
 
+  Future<app_transaction.Transaction?> getTransactionById(int id) async {
+    final db = await database;
+    final maps = await db.query(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return app_transaction.Transaction.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<int> updateTransaction(app_transaction.Transaction transaction) async {
+    final db = await database;
+
+    // Get the old transaction to revert stock changes
+    final oldTransaction = await getTransactionById(transaction.id!);
+    if (oldTransaction != null) {
+      // Revert old transaction stock changes
+      final item = await getItemById(oldTransaction.itemId);
+      if (item != null) {
+        int newStock = item.currentStock;
+        // Reverse the old transaction effect
+        if (oldTransaction.type == app_transaction.TransactionType.incoming) {
+          newStock -= oldTransaction.quantity;
+        } else {
+          newStock += oldTransaction.quantity;
+        }
+
+        // Apply new transaction effect
+        if (transaction.type == app_transaction.TransactionType.incoming) {
+          newStock += transaction.quantity;
+        } else {
+          newStock -= transaction.quantity;
+        }
+
+        await updateItemStock(transaction.itemId, newStock);
+      }
+    }
+
+    return await db.update(
+      'transactions',
+      transaction.toMap(),
+      where: 'id = ?',
+      whereArgs: [transaction.id],
+    );
+  }
+
+  Future<int> deleteTransaction(int id) async {
+    final db = await database;
+
+    // Get the transaction to revert stock changes
+    final transaction = await getTransactionById(id);
+    if (transaction != null) {
+      final item = await getItemById(transaction.itemId);
+      if (item != null) {
+        int newStock = item.currentStock;
+        // Reverse the transaction effect
+        if (transaction.type == app_transaction.TransactionType.incoming) {
+          newStock -= transaction.quantity;
+        } else {
+          newStock += transaction.quantity;
+        }
+        await updateItemStock(transaction.itemId, newStock);
+      }
+    }
+
+    return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+  }
+
   // Activity log operations
   Future<int> insertActivityLog(ActivityLog log) async {
     final db = await database;
@@ -404,110 +499,168 @@ class DatabaseService {
   }
 
   Future<List<ActivityLog>> getRecentActivityLogs([int limit = 50]) async {
-    final db = await database;
-    final maps = await db.query(
-      'activity_logs',
-      orderBy: 'timestamp DESC',
-      limit: limit,
-    );
-    return List.generate(maps.length, (i) => ActivityLog.fromMap(maps[i]));
+    try {
+      final db = await database;
+      final maps = await db.query(
+        'activity_logs',
+        orderBy: 'timestamp DESC',
+        limit: limit,
+      );
+      return List.generate(maps.length, (i) => ActivityLog.fromMap(maps[i]));
+    } catch (e) {
+      debugPrint('Error getting recent activity logs: $e');
+      return [];
+    }
   }
 
   Future<List<ActivityLog>> getActivityLogsByUser(int userId) async {
-    final db = await database;
-    final maps = await db.query(
-      'activity_logs',
-      where: 'user_id = ?',
-      whereArgs: [userId],
-      orderBy: 'timestamp DESC',
-    );
-    return List.generate(maps.length, (i) => ActivityLog.fromMap(maps[i]));
+    try {
+      final db = await database;
+      final maps = await db.query(
+        'activity_logs',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        orderBy: 'timestamp DESC',
+      );
+      return List.generate(maps.length, (i) => ActivityLog.fromMap(maps[i]));
+    } catch (e) {
+      debugPrint('Error getting activity logs by user: $e');
+      return [];
+    }
   }
 
   // Dashboard statistics
   Future<Map<String, int>> getDashboardStats() async {
-    final db = await database;
+    try {
+      final db = await database;
 
-    // Total items
-    final totalItems =
-        Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM items'),
-        ) ??
-        0;
+      // Initialize default values
+      Map<String, int> stats = {
+        'totalItems': 0,
+        'totalStock': 0,
+        'lowStockItems': 0,
+        'outOfStockItems': 0,
+        'totalCategories': 0,
+        'todayIncoming': 0,
+        'todayOutgoing': 0,
+      };
 
-    // Total stock
-    final totalStock =
-        Sqflite.firstIntValue(
-          await db.rawQuery('SELECT SUM(current_stock) FROM items'),
-        ) ??
-        0;
+      // Total items
+      try {
+        final totalItems =
+            Sqflite.firstIntValue(
+              await db.rawQuery('SELECT COUNT(*) FROM items'),
+            ) ??
+            0;
+        stats['totalItems'] = totalItems;
+      } catch (e) {
+        debugPrint('Error getting total items: $e');
+      }
 
-    // Low stock items
-    final lowStockItems =
-        Sqflite.firstIntValue(
-          await db.rawQuery(
-            'SELECT COUNT(*) FROM items WHERE current_stock <= 5',
-          ),
-        ) ??
-        0;
+      // Total stock
+      try {
+        final totalStock =
+            Sqflite.firstIntValue(
+              await db.rawQuery(
+                'SELECT COALESCE(SUM(current_stock), 0) FROM items',
+              ),
+            ) ??
+            0;
+        stats['totalStock'] = totalStock;
+      } catch (e) {
+        debugPrint('Error getting total stock: $e');
+      }
 
-    // Out of stock items
-    final outOfStockItems =
-        Sqflite.firstIntValue(
-          await db.rawQuery(
-            'SELECT COUNT(*) FROM items WHERE current_stock = 0',
-          ),
-        ) ??
-        0;
+      // Low stock items
+      try {
+        final lowStockItems =
+            Sqflite.firstIntValue(
+              await db.rawQuery(
+                'SELECT COUNT(*) FROM items WHERE current_stock <= 5 AND current_stock > 0',
+              ),
+            ) ??
+            0;
+        stats['lowStockItems'] = lowStockItems;
+      } catch (e) {
+        debugPrint('Error getting low stock items: $e');
+      }
 
-    // Total categories
-    final totalCategories =
-        Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM categories'),
-        ) ??
-        0;
+      // Out of stock items
+      try {
+        final outOfStockItems =
+            Sqflite.firstIntValue(
+              await db.rawQuery(
+                'SELECT COUNT(*) FROM items WHERE current_stock = 0',
+              ),
+            ) ??
+            0;
+        stats['outOfStockItems'] = outOfStockItems;
+      } catch (e) {
+        debugPrint('Error getting out of stock items: $e');
+      }
 
-    // Today's incoming transactions
-    final today = DateTime.now();
-    final todayStart = DateTime(today.year, today.month, today.day);
-    final todayEnd = todayStart.add(const Duration(days: 1));
+      // Total categories
+      try {
+        final totalCategories =
+            Sqflite.firstIntValue(
+              await db.rawQuery('SELECT COUNT(*) FROM categories'),
+            ) ??
+            0;
+        stats['totalCategories'] = totalCategories;
+      } catch (e) {
+        debugPrint('Error getting total categories: $e');
+      }
 
-    final todayIncoming =
-        Sqflite.firstIntValue(
-          await db.rawQuery(
-            'SELECT COALESCE(SUM(quantity), 0) FROM transactions WHERE type = ? AND date BETWEEN ? AND ?',
-            [
-              'incoming',
-              todayStart.toIso8601String(),
-              todayEnd.toIso8601String(),
-            ],
-          ),
-        ) ??
-        0;
+      // Today's transactions
+      try {
+        final today = DateTime.now();
+        final todayStart = DateTime(today.year, today.month, today.day);
+        final todayEnd = todayStart.add(const Duration(days: 1));
 
-    // Today's outgoing transactions
-    final todayOutgoing =
-        Sqflite.firstIntValue(
-          await db.rawQuery(
-            'SELECT COALESCE(SUM(quantity), 0) FROM transactions WHERE type = ? AND date BETWEEN ? AND ?',
-            [
-              'outgoing',
-              todayStart.toIso8601String(),
-              todayEnd.toIso8601String(),
-            ],
-          ),
-        ) ??
-        0;
+        final todayIncoming =
+            Sqflite.firstIntValue(
+              await db.rawQuery(
+                'SELECT COALESCE(SUM(quantity), 0) FROM transactions WHERE type = ? AND date >= ? AND date < ?',
+                [
+                  'incoming',
+                  todayStart.toIso8601String(),
+                  todayEnd.toIso8601String(),
+                ],
+              ),
+            ) ??
+            0;
+        stats['todayIncoming'] = todayIncoming;
 
-    return {
-      'totalItems': totalItems,
-      'totalStock': totalStock,
-      'lowStockItems': lowStockItems,
-      'outOfStockItems': outOfStockItems,
-      'totalCategories': totalCategories,
-      'todayIncoming': todayIncoming,
-      'todayOutgoing': todayOutgoing,
-    };
+        final todayOutgoing =
+            Sqflite.firstIntValue(
+              await db.rawQuery(
+                'SELECT COALESCE(SUM(quantity), 0) FROM transactions WHERE type = ? AND date >= ? AND date < ?',
+                [
+                  'outgoing',
+                  todayStart.toIso8601String(),
+                  todayEnd.toIso8601String(),
+                ],
+              ),
+            ) ??
+            0;
+        stats['todayOutgoing'] = todayOutgoing;
+      } catch (e) {
+        debugPrint('Error getting today transactions: $e');
+      }
+
+      return stats;
+    } catch (e) {
+      debugPrint('Error getting dashboard stats: $e');
+      return {
+        'totalItems': 0,
+        'totalStock': 0,
+        'lowStockItems': 0,
+        'outOfStockItems': 0,
+        'totalCategories': 0,
+        'todayIncoming': 0,
+        'todayOutgoing': 0,
+      };
+    }
   }
 
   Future<void> closeDatabase() async {

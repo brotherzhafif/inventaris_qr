@@ -27,15 +27,28 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-      final success = await authProvider.login(
-        _usernameController.text.trim(),
-        _passwordController.text,
-      );
-
-      if (success && mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      try {
+        final success = await authProvider.login(
+          _usernameController.text.trim(),
+          _passwordController.text,
         );
+
+        if (success && mounted) {
+          // Add small delay to ensure provider state is fully updated
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }

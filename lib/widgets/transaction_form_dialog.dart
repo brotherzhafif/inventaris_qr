@@ -7,7 +7,9 @@ import '../models/transaction.dart' as app_transaction;
 import '../models/item.dart';
 
 class TransactionFormDialog extends StatefulWidget {
-  const TransactionFormDialog({super.key});
+  final app_transaction.Transaction? transaction; // null for add mode
+
+  const TransactionFormDialog({super.key, this.transaction});
 
   @override
   State<TransactionFormDialog> createState() => _TransactionFormDialogState();
@@ -26,6 +28,21 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.transaction != null) {
+      // Edit mode - populate fields
+      final transaction = widget.transaction!;
+      _selectedType = transaction.type;
+      _selectedItemId = transaction.itemId;
+      _quantityController.text = transaction.quantity.toString();
+      _supplierController.text = transaction.supplier ?? '';
+      _recipientController.text = transaction.recipient ?? '';
+      _notesController.text = transaction.notes ?? '';
+    }
+  }
+
+  @override
   void dispose() {
     _quantityController.dispose();
     _supplierController.dispose();
@@ -37,7 +54,9 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Tambah Transaksi'),
+      title: Text(
+        widget.transaction == null ? 'Tambah Transaksi' : 'Edit Transaksi',
+      ),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.9,
         child: Form(
@@ -240,10 +259,13 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
       final transaction = app_transaction.Transaction(
+        id: widget.transaction?.id, // Keep ID for edit mode
         itemId: _selectedItemId!,
         type: _selectedType,
         quantity: int.parse(_quantityController.text),
-        date: DateTime.now(),
+        date:
+            widget.transaction?.date ??
+            DateTime.now(), // Keep original date for edit mode
         supplier: _selectedType == app_transaction.TransactionType.incoming
             ? _supplierController.text.trim().isEmpty
                   ? null
@@ -260,17 +282,31 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
         userId: authProvider.currentUser!.id!,
       );
 
-      final success = await transactionProvider.addTransaction(
-        transaction,
-        authProvider.currentUser!.id!,
-      );
+      bool success;
+      String successMessage;
+
+      if (widget.transaction == null) {
+        // Add mode
+        success = await transactionProvider.addTransaction(
+          transaction,
+          authProvider.currentUser!.id!,
+        );
+        successMessage = 'Transaksi berhasil ditambahkan';
+      } else {
+        // Edit mode
+        success = await transactionProvider.updateTransaction(
+          transaction,
+          authProvider.currentUser!.id!,
+        );
+        successMessage = 'Transaksi berhasil diupdate';
+      }
 
       if (mounted) {
         if (success) {
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Transaksi berhasil ditambahkan'),
+            SnackBar(
+              content: Text(successMessage),
               backgroundColor: Colors.green,
             ),
           );
@@ -278,7 +314,7 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                transactionProvider.errorMessage ?? 'Gagal menambah transaksi',
+                transactionProvider.errorMessage ?? 'Gagal menyimpan transaksi',
               ),
               backgroundColor: Colors.red,
             ),

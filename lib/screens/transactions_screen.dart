@@ -306,9 +306,42 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Tutup'),
+          Consumer<AuthProvider>(
+            builder: (context, authProvider, child) {
+              if (!authProvider.currentUser!.canManageTransactions) {
+                return TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Tutup'),
+                );
+              }
+
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _showTransactionForm(transaction: transaction);
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Edit'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _deleteTransaction(transaction);
+                    },
+                    icon: const Icon(Icons.delete),
+                    label: const Text('Hapus'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Tutup'),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -334,11 +367,63 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  void _showTransactionForm() {
+  void _showTransactionForm({app_transaction.Transaction? transaction}) {
     showDialog(
       context: context,
-      builder: (context) => const TransactionFormDialog(),
+      builder: (context) => TransactionFormDialog(transaction: transaction),
     );
+  }
+
+  Future<void> _deleteTransaction(
+    app_transaction.Transaction transaction,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Transaksi'),
+        content: const Text(
+          'Apakah Anda yakin ingin menghapus transaksi ini? Stok barang akan disesuaikan kembali.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final transactionProvider = Provider.of<TransactionProvider>(
+        context,
+        listen: false,
+      );
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      final success = await transactionProvider.deleteTransaction(
+        transaction.id!,
+        authProvider.currentUser!.id!,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Transaksi berhasil dihapus'
+                  : transactionProvider.errorMessage ??
+                        'Gagal menghapus transaksi',
+            ),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showDateRangePicker() async {
