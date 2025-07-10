@@ -52,18 +52,23 @@ class _ScannerScreenState extends State<ScannerScreen> {
       final code = barcode.rawValue;
 
       if (code != null && code.isNotEmpty) {
+        // Use mounted check before accessing provider
+        if (!mounted) return;
+
         // Check if this barcode exists in items
         final itemProvider = Provider.of<ItemProvider>(context, listen: false);
         final existingItem = itemProvider.items
             .where((item) => item.barcode == code || item.code == code)
             .firstOrNull;
 
-        if (existingItem != null) {
-          // Show item details
-          _showItemDetails(existingItem.name, code);
-        } else {
-          // Show option to add new item with this barcode
-          _showAddItemOption(code);
+        if (mounted) {
+          if (existingItem != null) {
+            // Show item details
+            _showItemDetails(existingItem.name, code);
+          } else {
+            // Show option to add new item with this barcode
+            _showAddItemOption(code);
+          }
         }
       }
     }
