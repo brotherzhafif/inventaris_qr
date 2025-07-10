@@ -1,4 +1,4 @@
-import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class BarcodeService {
@@ -15,24 +15,15 @@ class BarcodeService {
     try {
       // Check and request camera permission
       if (!await requestCameraPermission()) {
-        throw Exception('Camera permission not granted');
-      }
-
-      String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
-        '#ff6666', // Color for the scan line
-        'Cancel', // Cancel button text
-        true, // Show flash icon
-        ScanMode.BARCODE, // Scan mode
-      );
-
-      // Check if user cancelled the scan
-      if (barcodeScanRes == '-1') {
+        debugPrint('Camera permission not granted');
         return null;
       }
 
-      return barcodeScanRes;
+      // This is a placeholder - actual scanning happens in ScannerScreen
+      debugPrint('Barcode scanning should be done using ScannerScreen');
+      return null;
     } catch (e) {
-      print('Error scanning barcode: $e');
+      debugPrint('Error scanning barcode: $e');
       return null;
     }
   }
@@ -41,24 +32,15 @@ class BarcodeService {
     try {
       // Check and request camera permission
       if (!await requestCameraPermission()) {
-        throw Exception('Camera permission not granted');
-      }
-
-      String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
-        '#ff6666', // Color for the scan line
-        'Cancel', // Cancel button text
-        true, // Show flash icon
-        ScanMode.QR, // QR Code scan mode
-      );
-
-      // Check if user cancelled the scan
-      if (barcodeScanRes == '-1') {
+        debugPrint('Camera permission not granted');
         return null;
       }
 
-      return barcodeScanRes;
+      // This is a placeholder - actual scanning happens in ScannerScreen
+      debugPrint('QR code scanning should be done using ScannerScreen');
+      return null;
     } catch (e) {
-      print('Error scanning QR code: $e');
+      debugPrint('Error scanning QR code: $e');
       return null;
     }
   }
@@ -69,6 +51,12 @@ class BarcodeService {
     return 'BRC$timestamp';
   }
 
+  String generateQRCode() {
+    // Generate a simple QR code based on timestamp
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    return 'QRC$timestamp';
+  }
+
   bool isValidBarcode(String barcode) {
     // Basic validation for barcode format
     if (barcode.isEmpty) return false;
@@ -76,7 +64,13 @@ class BarcodeService {
     // Check minimum length
     if (barcode.length < 3) return false;
 
-    // Additional validation rules can be added here
-    return true;
+    // Check if it contains valid characters (alphanumeric and some special chars)
+    final regex = RegExp(r'^[A-Za-z0-9\-_]+$');
+    return regex.hasMatch(barcode);
+  }
+
+  bool isValidQRCode(String qrCode) {
+    // QR codes can contain more varied content
+    return qrCode.isNotEmpty;
   }
 }

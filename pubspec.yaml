@@ -43,11 +43,8 @@ dependencies:
   provider: ^6.1.1
 
   # Barcode/QR Scanner
-  qr_code_scanner: ^1.0.1
+  mobile_scanner: ^5.0.0 # Better compatibility than qr_code_scanner
   permission_handler: ^11.0.1
-
-  # UI Components
-  flutter_barcode_scanner: ^2.0.0
   image_picker: ^1.0.4
 
   # File Operations
