@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../providers/item_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/item.dart';
@@ -159,72 +160,182 @@ class _ItemsScreenState extends State<ItemsScreen> {
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: item.isOutOfStock
-                                ? Colors.red.shade100
-                                : item.isLowStock
-                                ? Colors.orange.shade100
-                                : Colors.green.shade100,
-                            child: Icon(
-                              Icons.inventory_2,
-                              color: item.isOutOfStock
-                                  ? Colors.red
-                                  : item.isLowStock
-                                  ? Colors.orange
-                                  : Colors.green,
+                        elevation: 2,
+                        child: InkWell(
+                          onTap: () => _showItemDetails(item, category),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                // QR Code
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: QrImageView(
+                                    data: item.barcode,
+                                    version: QrVersions.auto,
+                                    size: 60,
+                                    backgroundColor: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                // Item Info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Kode: ${item.barcode}',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Kategori: ${category.name}',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Lokasi: ${item.location}',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Stock Info and Actions
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: item.isOutOfStock
+                                            ? Colors.red.shade100
+                                            : item.isLowStock
+                                            ? Colors.orange.shade100
+                                            : Colors.green.shade100,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'Stok: ${item.currentStock}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                          color: item.isOutOfStock
+                                              ? Colors.red.shade700
+                                              : item.isLowStock
+                                              ? Colors.orange.shade700
+                                              : Colors.green.shade700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (item.isLowStock)
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: item.isOutOfStock
+                                              ? Colors.red
+                                              : Colors.orange,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          item.isOutOfStock
+                                              ? 'Habis'
+                                              : 'Menipis',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                    const SizedBox(height: 8),
+                                    Consumer<AuthProvider>(
+                                      builder: (context, authProvider, child) {
+                                        if (!authProvider
+                                            .currentUser!
+                                            .canManageItems) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return PopupMenuButton<String>(
+                                          onSelected: (value) {
+                                            if (value == 'edit') {
+                                              _showItemForm(item);
+                                            } else if (value == 'delete') {
+                                              _deleteItem(item);
+                                            }
+                                          },
+                                          itemBuilder: (context) => [
+                                            const PopupMenuItem(
+                                              value: 'edit',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.edit, size: 16),
+                                                  SizedBox(width: 8),
+                                                  Text('Edit'),
+                                                ],
+                                              ),
+                                            ),
+                                            const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.delete,
+                                                    size: 16,
+                                                    color: Colors.red,
+                                                  ),
+                                                  SizedBox(width: 8),
+                                                  Text(
+                                                    'Hapus',
+                                                    style: TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          title: Text(
-                            item.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Barcode: ${item.barcode}'),
-                              Text('Kategori: ${category.name}'),
-                              Text('Lokasi: ${item.location}'),
-                            ],
-                          ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'Stok: ${item.currentStock}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: item.isOutOfStock
-                                      ? Colors.red
-                                      : item.isLowStock
-                                      ? Colors.orange
-                                      : Colors.green,
-                                ),
-                              ),
-                              if (item.isLowStock)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: item.isOutOfStock
-                                        ? Colors.red
-                                        : Colors.orange,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    item.isOutOfStock ? 'Habis' : 'Menipis',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          onTap: () => _showItemDetails(item, category),
                         ),
                       );
                     },
@@ -417,6 +528,59 @@ class _ItemsScreenState extends State<ItemsScreen> {
       const SnackBar(
         content: Text('Fitur download QR akan segera tersedia'),
         backgroundColor: Colors.blue,
+      ),
+    );
+  }
+
+  void _deleteItem(Item item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konfirmasi Hapus'),
+        content: Text('Apakah Anda yakin ingin menghapus "${item.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+
+              final itemProvider = Provider.of<ItemProvider>(
+                context,
+                listen: false,
+              );
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
+
+              // Store context before async operation
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+              final success = await itemProvider.deleteItem(
+                item.id!,
+                authProvider.currentUser!.id!,
+              );
+
+              if (mounted) {
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? 'Barang berhasil dihapus'
+                          : 'Gagal menghapus barang',
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Hapus'),
+          ),
+        ],
       ),
     );
   }

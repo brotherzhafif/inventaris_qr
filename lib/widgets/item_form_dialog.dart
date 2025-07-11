@@ -29,12 +29,16 @@ class _ItemFormDialogState extends State<ItemFormDialog> {
   void initState() {
     super.initState();
     if (widget.item != null) {
+      // Edit mode - populate existing item data
       _nameController.text = widget.item!.name;
       _barcodeController.text = widget.item!.barcode;
       _locationController.text = widget.item!.location;
       _stockController.text = widget.item!.currentStock.toString();
       _descriptionController.text = widget.item!.description ?? '';
       _selectedCategoryId = widget.item!.categoryId;
+    } else {
+      // Add mode - auto-generate barcode for new item
+      _generateBarcode();
     }
   }
 
@@ -80,17 +84,20 @@ class _ItemFormDialogState extends State<ItemFormDialog> {
                 TextFormField(
                   controller: _barcodeController,
                   decoration: InputDecoration(
-                    labelText: 'Barcode*',
-                    hintText: 'Masukkan barcode atau scan',
+                    labelText: 'Kode Barang (Barcode)*',
+                    hintText: 'Auto-generated atau scan barcode',
+                    prefixIcon: const Icon(Icons.qr_code),
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
                           icon: const Icon(Icons.qr_code_scanner),
+                          tooltip: 'Scan Barcode',
                           onPressed: _scanBarcode,
                         ),
                         IconButton(
-                          icon: const Icon(Icons.auto_awesome),
+                          icon: const Icon(Icons.refresh),
+                          tooltip: 'Generate Ulang',
                           onPressed: _generateBarcode,
                         ),
                       ],
@@ -98,7 +105,7 @@ class _ItemFormDialogState extends State<ItemFormDialog> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Barcode tidak boleh kosong';
+                      return 'Kode barang tidak boleh kosong';
                     }
                     return null;
                   },
