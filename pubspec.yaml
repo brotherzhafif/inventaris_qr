@@ -64,6 +64,12 @@ dependencies:
   share_plus: ^7.2.1
   qr_flutter: ^4.1.0
 
+  # File picker for import
+  file_picker: ^8.1.2
+
+  # Archive for database backup
+  archive: ^3.4.9
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

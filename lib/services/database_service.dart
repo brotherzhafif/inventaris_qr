@@ -675,5 +675,19 @@ class DatabaseService {
   Future<void> closeDatabase() async {
     final db = await database;
     await db.close();
+    _database = null;
+  }
+
+  Future<String> getDatabasePath() async {
+    String path = join(await getDatabasesPath(), 'inventaris.db');
+    return path;
+  }
+
+  Future<void> close() async {
+    await closeDatabase();
+  }
+
+  Future<void> initDatabase() async {
+    _database = await _initDatabase();
   }
 }

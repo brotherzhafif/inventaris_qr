@@ -547,19 +547,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
             _searchQuery = code;
           });
         } else if (action == 'transactions') {
-          // Use callback to dashboard or fallback to navigation
-          if (widget.onScanResult != null) {
-            widget.onScanResult!(result);
-          } else {
-            // Fallback for standalone usage
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => TransactionsScreen(searchCode: code),
-                ),
-              );
-            }
+          // Navigate to transactions screen and pass the search code
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TransactionsScreen(searchCode: code),
+              ),
+            );
           }
         }
       }

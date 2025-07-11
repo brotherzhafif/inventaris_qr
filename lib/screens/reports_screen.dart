@@ -124,6 +124,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
             const SizedBox(height: 24),
 
+            // Database Backup/Restore Section
+            Text(
+              'Backup & Restore Database',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+
+            _buildDatabaseCard(),
+
+            const SizedBox(height: 24),
+
             // Summary Stats
             Card(
               child: Padding(
@@ -532,6 +545,210 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal export Excel: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildDatabaseCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.purple.withValues(alpha: 0.1),
+                  child: const Icon(Icons.storage, color: Colors.purple),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Database Backup & Restore',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Backup semua data aplikasi atau restore dari backup',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isExporting ? null : _exportDatabase,
+                    icon: _isExporting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.backup),
+                    label: Text(
+                      _isExporting ? 'Exporting...' : 'Export Database',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isExporting ? null : _importDatabase,
+                    icon: const Icon(Icons.restore),
+                    label: const Text('Import Database'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.purple,
+                      side: const BorderSide(color: Colors.purple),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '⚠️ Import database akan mengganti semua data yang ada. Pastikan Anda sudah backup data saat ini.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.orange[700],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _exportDatabase() async {
+    try {
+      setState(() {
+        _isExporting = true;
+      });
+
+      final exportService = ExportService();
+      final file = await exportService.exportDatabase();
+      await exportService.shareFile(file);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Database berhasil diexport'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error export database: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
+  }
+
+  void _importDatabase() async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import Database'),
+        content: const Text(
+          'Import database akan mengganti semua data yang ada. '
+          'Apakah Anda yakin ingin melanjutkan?\n\n'
+          'Pastikan Anda sudah backup data saat ini.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ya, Import'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      setState(() {
+        _isExporting = true;
+      });
+
+      final exportService = ExportService();
+      final success = await exportService.importDatabase();
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Database berhasil diimport. Restart aplikasi untuk melihat perubahan.',
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            ),
+          );
+
+          // Reload data
+          Provider.of<ItemProvider>(context, listen: false).loadItems();
+          Provider.of<ItemProvider>(context, listen: false).loadCategories();
+          Provider.of<TransactionProvider>(
+            context,
+            listen: false,
+          ).loadTransactions();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Import database dibatalkan'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error import database: $e'),
             backgroundColor: Colors.red,
           ),
         );
