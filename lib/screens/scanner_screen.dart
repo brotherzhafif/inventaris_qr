@@ -134,6 +134,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 4),
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
@@ -152,6 +153,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          if (itemFound) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _navigateToAddTransaction(code);
+                    },
+                    icon: const Icon(Icons.add_circle),
+                    label: const Text('Tambah Transaksi'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -165,6 +189,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
   void _navigateToTransactions(String code) {
     // Close scanner and return to calling screen with a flag for transactions
     Navigator.of(context).pop({'action': 'transactions', 'code': code});
+  }
+
+  void _navigateToAddTransaction(String code) {
+    // Close scanner and return to calling screen with a flag for adding transaction
+    Navigator.of(context).pop({'action': 'add_transaction', 'code': code});
   }
 
   void _resetScanning() {

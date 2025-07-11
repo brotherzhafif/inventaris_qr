@@ -5,11 +5,17 @@ import '../providers/item_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/transaction.dart' as app_transaction;
 import '../models/item.dart';
+import '../screens/scanner_screen.dart';
 
 class TransactionFormDialog extends StatefulWidget {
   final app_transaction.Transaction? transaction; // null for add mode
+  final String? selectedItemBarcode; // for pre-selecting item
 
-  const TransactionFormDialog({super.key, this.transaction});
+  const TransactionFormDialog({
+    super.key,
+    this.transaction,
+    this.selectedItemBarcode,
+  });
 
   @override
   State<TransactionFormDialog> createState() => _TransactionFormDialogState();
@@ -39,6 +45,9 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
       _supplierController.text = transaction.supplier ?? '';
       _recipientController.text = transaction.recipient ?? '';
       _notesController.text = transaction.notes ?? '';
+    } else if (widget.selectedItemBarcode != null) {
+      // Add mode with pre-selected item
+      _selectedItemBarcode = widget.selectedItemBarcode;
     }
   }
 
@@ -104,40 +113,66 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
                 // Item Selection
                 Consumer<ItemProvider>(
                   builder: (context, itemProvider, child) {
-                    return DropdownButtonFormField<String>(
-                      value: _selectedItemBarcode,
-                      decoration: const InputDecoration(
-                        labelText: 'Pilih Barang*',
-                      ),
-                      items: itemProvider.items.map((item) {
-                        return DropdownMenuItem<String>(
-                          value: item.barcode,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(item.name),
-                              Text(
-                                'Stok: ${item.currentStock} - ${item.barcode}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
+                    return Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedItemBarcode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Pilih Barang*',
                                 ),
+                                items: itemProvider.items.map((item) {
+                                  return DropdownMenuItem<String>(
+                                    value: item.barcode,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(item.name),
+                                        Text(
+                                          'Stok: ${item.currentStock} - ${item.barcode}',
+                                          style: TextStyle(
+                                            fontSize: 8,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedItemBarcode = value;
+                                  });
+                                },
+                                validator: (value) {
+                                  if (value == null) {
+                                    return 'Pilih barang';
+                                  }
+                                  return null;
+                                },
                               ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedItemBarcode = value;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Pilih barang';
-                        }
-                        return null;
-                      },
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).primaryColor,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: IconButton(
+                                onPressed: _scanItemQR,
+                                icon: const Icon(
+                                  Icons.qr_code_scanner,
+                                  color: Colors.white,
+                                ),
+                                tooltip: 'Scan QR Barang',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -334,6 +369,75 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
         setState(() {
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  void _scanItemQR() async {
+    try {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ScannerScreen()),
+      );
+
+      if (result != null && mounted) {
+        String? scannedCode;
+
+        if (result is String) {
+          scannedCode = result;
+        } else if (result is Map<String, dynamic>) {
+          scannedCode = result['code'];
+        }
+
+        if (scannedCode != null) {
+          // Check if item with this barcode exists
+          final itemProvider = Provider.of<ItemProvider>(
+            context,
+            listen: false,
+          );
+          final existingItem = itemProvider.items.firstWhere(
+            (item) => item.barcode == scannedCode,
+            orElse: () => Item(
+              name: '',
+              barcode: '',
+              categoryId: 0,
+              location: '',
+              dateAdded: DateTime.now(),
+              currentStock: 0,
+            ),
+          );
+
+          if (existingItem.name.isNotEmpty) {
+            setState(() {
+              _selectedItemBarcode = scannedCode;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Barang "${existingItem.name}" dipilih'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Barang dengan kode "$scannedCode" tidak ditemukan',
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error scanning: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }

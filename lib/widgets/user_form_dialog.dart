@@ -165,7 +165,7 @@ class _UserFormDialogState extends State<UserFormDialog> {
                               Text(
                                 _getRoleDescription(role),
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 8,
                                   color: Colors.grey.shade600,
                                 ),
                               ),

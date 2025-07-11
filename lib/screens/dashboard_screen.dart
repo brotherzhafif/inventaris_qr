@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/item_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../widgets/transaction_form_dialog.dart';
 import 'items_screen.dart';
 import 'transactions_screen.dart';
 import 'reports_screen.dart';
@@ -23,7 +24,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
   String? _searchQuery;
 
-  void _handleScanResult(Map<String, dynamic> result) {
+  void _handleScanResult(Map<String, dynamic> result) async {
     final action = result['action'];
     final code = result['code'];
 
@@ -35,6 +36,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       } else if (action == 'transactions') {
         // Find transactions tab index
         _currentIndex = _getTransactionsTabIndex();
+      } else if (action == 'add_transaction') {
+        // Navigate to transactions tab and trigger add transaction dialog
+        _currentIndex = _getTransactionsTabIndex();
+        // Wait for the tab to be active then open transaction dialog
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showAddTransactionDialog(code);
+        });
       }
     });
   }
@@ -260,6 +268,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       },
     );
+  }
+
+  void _showAddTransactionDialog(String barcode) {
+    // Find the item by barcode
+    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
+    final item = itemProvider.items
+        .where((item) => item.barcode == barcode)
+        .firstOrNull;
+
+    if (item != null) {
+      showDialog(
+        context: context,
+        builder: (context) =>
+            TransactionFormDialog(selectedItemBarcode: barcode),
+      ).then((_) {
+        // Refresh transactions after dialog closes
+        final transactionProvider = Provider.of<TransactionProvider>(
+          context,
+          listen: false,
+        );
+        transactionProvider.loadTransactions();
+      });
+    } else {
+      // Show error if item not found
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Barang dengan barcode $barcode tidak ditemukan'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showLogoutDialog() {
