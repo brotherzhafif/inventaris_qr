@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
 import '../providers/item_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/item.dart';
 import '../models/category.dart';
 import '../widgets/item_form_dialog.dart';
 import 'scanner_screen.dart';
+import 'transactions_screen.dart';
 
 class ItemsScreen extends StatefulWidget {
-  const ItemsScreen({super.key});
+  final String? searchCode;
+  final Function(Map<String, dynamic>)? onScanResult;
+
+  const ItemsScreen({super.key, this.searchCode, this.onScanResult});
 
   @override
   State<ItemsScreen> createState() => _ItemsScreenState();
@@ -22,6 +30,13 @@ class _ItemsScreenState extends State<ItemsScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Set search code if provided
+    if (widget.searchCode != null) {
+      _searchController.text = widget.searchCode!;
+      _searchQuery = widget.searchCode!;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ItemProvider>(context, listen: false).loadItems();
       Provider.of<ItemProvider>(context, listen: false).loadCategories();
@@ -514,22 +529,133 @@ class _ItemsScreenState extends State<ItemsScreen> {
       MaterialPageRoute(builder: (context) => const ScannerScreen()),
     );
 
-    if (result != null && result is String) {
-      setState(() {
-        _searchController.text = result;
-        _searchQuery = result;
-      });
+    if (result != null) {
+      if (result is String) {
+        // Legacy support for direct string return
+        setState(() {
+          _searchController.text = result;
+          _searchQuery = result;
+        });
+      } else if (result is Map<String, dynamic>) {
+        final action = result['action'];
+        final code = result['code'];
+
+        if (action == 'items') {
+          // Fill search for items (current screen)
+          setState(() {
+            _searchController.text = code;
+            _searchQuery = code;
+          });
+        } else if (action == 'transactions') {
+          // Use callback to dashboard or fallback to navigation
+          if (widget.onScanResult != null) {
+            widget.onScanResult!(result);
+          } else {
+            // Fallback for standalone usage
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TransactionsScreen(searchCode: code),
+                ),
+              );
+            }
+          }
+        }
+      }
     }
   }
 
-  void _downloadQR(Item item) {
-    // TODO: Implement QR code download functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Fitur download QR akan segera tersedia'),
-        backgroundColor: Colors.blue,
-      ),
-    );
+  void _downloadQR(Item item) async {
+    try {
+      // Create QR code painter
+      final painter = QrPainter(
+        data: item.barcode,
+        version: QrVersions.auto,
+        errorCorrectionLevel: QrErrorCorrectLevel.L,
+        color: const Color(0xFF000000),
+        gapless: false,
+      );
+
+      // Create a canvas with white background and QR code
+      final pictureRecorder = ui.PictureRecorder();
+      final canvas = Canvas(pictureRecorder);
+      const size = 512.0;
+      const totalHeight = 600.0;
+
+      // Draw white background
+      canvas.drawRect(
+        const Rect.fromLTWH(0, 0, size, totalHeight),
+        Paint()..color = Colors.white,
+      );
+
+      // Draw QR code
+      painter.paint(canvas, const Size(size, size));
+
+      // Draw item info text
+      final textPainter = TextPainter(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: '${item.name}\n',
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextSpan(
+              text: 'Kode: ${item.barcode}',
+              style: const TextStyle(color: Colors.black, fontSize: 16),
+            ),
+          ],
+        ),
+        textDirection: TextDirection.ltr,
+      );
+
+      textPainter.layout(maxWidth: size - 32);
+      textPainter.paint(canvas, const Offset(16, size + 16));
+
+      // Convert to image
+      final picture = pictureRecorder.endRecording();
+      final img = await picture.toImage(size.toInt(), totalHeight.toInt());
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      final pngBytes = byteData!.buffer.asUint8List();
+
+      // Save to temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/qr_${item.barcode}.png');
+      await file.writeAsBytes(pngBytes);
+
+      // Share the file
+      final result = await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'QR Code untuk ${item.name} (${item.barcode})',
+        subject: 'QR Code Inventaris',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.status == ShareResultStatus.success
+                  ? 'QR code berhasil dibagikan'
+                  : 'QR code siap didownload',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal membuat QR code: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _deleteItem(Item item) {

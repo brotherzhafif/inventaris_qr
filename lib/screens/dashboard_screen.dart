@@ -21,6 +21,42 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
+  String? _searchQuery;
+
+  void _handleScanResult(Map<String, dynamic> result) {
+    final action = result['action'];
+    final code = result['code'];
+
+    setState(() {
+      _searchQuery = code;
+      if (action == 'items') {
+        // Find items tab index
+        _currentIndex = _getItemsTabIndex();
+      } else if (action == 'transactions') {
+        // Find transactions tab index
+        _currentIndex = _getTransactionsTabIndex();
+      }
+    });
+  }
+
+  int _getItemsTabIndex() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser!;
+
+    int index = 1; // Start after dashboard (index 0)
+    if (user.canViewItems) return index;
+    return 0; // Fallback to dashboard
+  }
+
+  int _getTransactionsTabIndex() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser!;
+
+    int index = 1; // Start after dashboard (index 0)
+    if (user.canViewItems) index++; // Skip items if available
+    if (user.canViewTransactions) return index;
+    return 0; // Fallback to dashboard
+  }
 
   @override
   void initState() {
@@ -164,8 +200,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 index: _currentIndex,
                 children: [
                   const DashboardContent(),
-                  if (user.canViewItems) const ItemsScreen(),
-                  if (user.canViewTransactions) const TransactionsScreen(),
+                  if (user.canViewItems)
+                    ItemsScreen(
+                      key: ValueKey('items_$_searchQuery'),
+                      searchCode: _searchQuery,
+                      onScanResult: _handleScanResult,
+                    ),
+                  if (user.canViewTransactions)
+                    TransactionsScreen(
+                      key: ValueKey('transactions_$_searchQuery'),
+                      searchCode: _searchQuery,
+                      onScanResult: _handleScanResult,
+                    ),
                   if (user.canViewReports) const ReportsScreen(),
                   if (user.canManageUsers) const UsersScreen(),
                 ],
@@ -176,6 +222,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onTap: (index) {
                   setState(() {
                     _currentIndex = index;
+                    // Clear search query when changing tabs manually
+                    if (_searchQuery != null) {
+                      _searchQuery = null;
+                    }
                   });
                 },
                 items: [

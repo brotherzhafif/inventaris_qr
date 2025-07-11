@@ -63,73 +63,108 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
         if (mounted) {
           if (existingItem != null) {
-            // Show item details
-            _showItemDetails(existingItem.name, code);
+            // Show item details with search options
+            _showScanResult(existingItem.name, code, true);
           } else {
-            // Show option to add new item with this barcode
-            _showAddItemOption(code);
+            // Show scan result with search options
+            _showScanResult('Barang tidak ditemukan', code, false);
           }
         }
       }
     }
   }
 
-  void _showItemDetails(String itemName, String code) {
+  void _showScanResult(String itemName, String code, bool itemFound) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Barang Ditemukan'),
+        title: Text(itemFound ? 'Barang Ditemukan' : 'Hasil Scan'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [Text('Nama: $itemName'), Text('Barcode: $code')],
+          children: [
+            if (itemFound) ...[
+              Text('Nama: $itemName'),
+              const SizedBox(height: 8),
+            ],
+            Text('Barcode: $code'),
+            const SizedBox(height: 16),
+            const Text(
+              'Pilih tindakan yang ingin dilakukan:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _resetScanning();
-            },
-            child: const Text('Scan Lagi'),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _resetScanning();
+                  },
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: const Text('Scan Lagi'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.grey,
+                  ),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop(); // Go back to previous screen
-            },
-            child: const Text('Selesai'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _navigateToItems(code);
+                  },
+                  icon: const Icon(Icons.inventory),
+                  label: const Text('Cari Barang'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _navigateToTransactions(code);
+                  },
+                  icon: const Icon(Icons.swap_horiz),
+                  label: const Text('Cari\nTransaksi'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  void _showAddItemOption(String code) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Barcode Tidak Ditemukan'),
-        content: Text(
-          'Barcode: $code\n\nApakah Anda ingin menambahkan barang baru dengan barcode ini?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _resetScanning();
-            },
-            child: const Text('Scan Lagi'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop(code); // Return the scanned code
-            },
-            child: const Text('Tambah Barang'),
-          ),
-        ],
-      ),
-    );
+  void _navigateToItems(String code) {
+    // Close scanner and return to calling screen with a flag for items
+    Navigator.of(context).pop({'action': 'items', 'code': code});
+  }
+
+  void _navigateToTransactions(String code) {
+    // Close scanner and return to calling screen with a flag for transactions
+    Navigator.of(context).pop({'action': 'transactions', 'code': code});
   }
 
   void _resetScanning() {

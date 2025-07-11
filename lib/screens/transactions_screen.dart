@@ -8,9 +8,13 @@ import '../models/transaction.dart' as app_transaction;
 import '../models/item.dart';
 import '../widgets/transaction_form_dialog.dart';
 import 'scanner_screen.dart';
+import 'items_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
-  const TransactionsScreen({super.key});
+  final String? searchCode;
+  final Function(Map<String, dynamic>)? onScanResult;
+
+  const TransactionsScreen({super.key, this.searchCode, this.onScanResult});
 
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
@@ -26,6 +30,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Set search code if provided
+    if (widget.searchCode != null) {
+      _searchController.text = widget.searchCode!;
+      _searchQuery = widget.searchCode!;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<TransactionProvider>(
         context,
@@ -483,11 +494,40 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       MaterialPageRoute(builder: (context) => const ScannerScreen()),
     );
 
-    if (result != null && result is String) {
-      setState(() {
-        _searchController.text = result;
-        _searchQuery = result;
-      });
+    if (result != null) {
+      if (result is String) {
+        // Legacy support for direct string return
+        setState(() {
+          _searchController.text = result;
+          _searchQuery = result;
+        });
+      } else if (result is Map<String, dynamic>) {
+        final action = result['action'];
+        final code = result['code'];
+
+        if (action == 'transactions') {
+          // Fill search for transactions (current screen)
+          setState(() {
+            _searchController.text = code;
+            _searchQuery = code;
+          });
+        } else if (action == 'items') {
+          // Use callback to dashboard or fallback to navigation
+          if (widget.onScanResult != null) {
+            widget.onScanResult!(result);
+          } else {
+            // Fallback for standalone usage
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ItemsScreen(searchCode: code),
+                ),
+              );
+            }
+          }
+        }
+      }
     }
   }
 
