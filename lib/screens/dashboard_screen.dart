@@ -10,7 +10,6 @@ import 'items_screen.dart';
 import 'transactions_screen.dart';
 import 'reports_screen.dart';
 import 'users_screen.dart';
-import 'scanner_screen.dart';
 import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -152,55 +151,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 backgroundColor: Colors.blue.shade600,
                 foregroundColor: Colors.white,
                 actions: [
-                  if (user.canScanBarcode)
-                    IconButton(
-                      icon: const Icon(Icons.qr_code_scanner),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ScannerScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'logout') {
-                        _showLogoutDialog();
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        child: Row(
-                          children: [
-                            const Icon(Icons.person),
-                            const SizedBox(width: 8),
-                            Text(user.fullName),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        child: Row(
-                          children: [
-                            const Icon(Icons.badge),
-                            const SizedBox(width: 8),
-                            Text(user.role.name),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      const PopupMenuItem(
-                        value: 'logout',
-                        child: Row(
-                          children: [
-                            Icon(Icons.logout),
-                            SizedBox(width: 8),
-                            Text('Logout'),
-                          ],
-                        ),
-                      ),
-                    ],
+                  // QR Scanner button commented out
+                  // if (user.canScanBarcode)
+                  //   IconButton(
+                  //     icon: const Icon(Icons.qr_code_scanner),
+                  //     onPressed: () {
+                  //       Navigator.push(
+                  //         context,
+                  //         MaterialPageRoute(
+                  //           builder: (context) => const ScannerScreen(),
+                  //         ),
+                  //       );
+                  //     },
+                  //   ),
+                  IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: _showLogoutDialog,
+                    tooltip: 'Logout',
                   ),
                 ],
               ),
