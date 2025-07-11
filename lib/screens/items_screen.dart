@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../models/item.dart';
 import '../models/category.dart';
 import '../widgets/item_form_dialog.dart';
+import 'scanner_screen.dart';
 
 class ItemsScreen extends StatefulWidget {
   const ItemsScreen({super.key});
@@ -15,7 +16,7 @@ class ItemsScreen extends StatefulWidget {
 
 class _ItemsScreenState extends State<ItemsScreen> {
   String _searchQuery = '';
-  int? _selectedCategoryId;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -36,53 +37,43 @@ class _ItemsScreenState extends State<ItemsScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Search Bar
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Cari barang...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-
-                // Category Filter
-                Consumer<ItemProvider>(
-                  builder: (context, itemProvider, child) {
-                    return DropdownButtonFormField<int?>(
-                      value: _selectedCategoryId,
-                      decoration: InputDecoration(
-                        labelText: 'Filter Kategori',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      items: [
-                        const DropdownMenuItem<int?>(
-                          value: null,
-                          child: Text('Semua Kategori'),
-                        ),
-                        ...itemProvider.categories.map(
-                          (category) => DropdownMenuItem<int?>(
-                            value: category.id,
-                            child: Text(category.name),
+                // Search Bar with QR Scan
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Cari barang, kategori dan kode...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCategoryId = value;
-                        });
-                      },
-                    );
-                  },
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // QR Scan Button
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        onPressed: _scanQR,
+                        icon: const Icon(
+                          Icons.qr_code_scanner,
+                          color: Colors.white,
+                        ),
+                        tooltip: 'Scan QR Code',
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -119,17 +110,11 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   );
                 }
 
-                // Filter items based on search and category
+                // Filter items based on search
                 List<Item> filteredItems = itemProvider.items;
 
                 if (_searchQuery.isNotEmpty) {
                   filteredItems = itemProvider.searchItems(_searchQuery);
-                }
-
-                if (_selectedCategoryId != null) {
-                  filteredItems = filteredItems
-                      .where((item) => item.categoryId == _selectedCategoryId)
-                      .toList();
                 }
 
                 if (filteredItems.isEmpty) {
@@ -144,8 +129,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          _searchQuery.isNotEmpty || _selectedCategoryId != null
-                              ? 'Tidak ada barang yang sesuai filter'
+                          _searchQuery.isNotEmpty
+                              ? 'Tidak ada barang yang sesuai pencarian'
                               : 'Belum ada barang',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
@@ -197,11 +182,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Kode: ${item.code}'),
+                              Text('Barcode: ${item.barcode}'),
                               Text('Kategori: ${category.name}'),
                               Text('Lokasi: ${item.location}'),
-                              if (item.barcode != null)
-                                Text('Barcode: ${item.barcode}'),
                             ],
                           ),
                           trailing: Column(
@@ -259,6 +242,7 @@ class _ItemsScreenState extends State<ItemsScreen> {
           }
 
           return FloatingActionButton(
+            heroTag: "items_fab",
             onPressed: () => _showItemForm(),
             child: const Icon(Icons.add),
           );
@@ -284,12 +268,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDetailRow('Kode', item.code),
+              _buildDetailRow('Barcode', item.barcode),
               _buildDetailRow('Kategori', category.name),
               _buildDetailRow('Lokasi', item.location),
               _buildDetailRow('Stok Saat Ini', item.currentStock.toString()),
-              if (item.barcode != null)
-                _buildDetailRow('Barcode', item.barcode!),
               _buildDetailRow(
                 'Tanggal Ditambah',
                 '${item.dateAdded.day}/${item.dateAdded.month}/${item.dateAdded.year}',
@@ -303,9 +285,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
           Consumer<AuthProvider>(
             builder: (context, authProvider, child) {
               if (!authProvider.currentUser!.canManageItems) {
-                return TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Tutup'),
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => _downloadQR(item),
+                      child: const Text('Download QR'),
+                    ),
+                  ],
                 );
               }
 
@@ -313,8 +300,8 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Tutup'),
+                    onPressed: () => _downloadQR(item),
+                    child: const Text('Download QR'),
                   ),
                   TextButton(
                     onPressed: () {
@@ -408,5 +395,35 @@ class _ItemsScreenState extends State<ItemsScreen> {
         ],
       ),
     );
+  }
+
+  void _scanQR() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ScannerScreen()),
+    );
+
+    if (result != null && result is String) {
+      setState(() {
+        _searchController.text = result;
+        _searchQuery = result;
+      });
+    }
+  }
+
+  void _downloadQR(Item item) {
+    // TODO: Implement QR code download functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Fitur download QR akan segera tersedia'),
+        backgroundColor: Colors.blue,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }

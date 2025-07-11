@@ -17,7 +17,6 @@ class ItemFormDialog extends StatefulWidget {
 class _ItemFormDialogState extends State<ItemFormDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _codeController = TextEditingController();
   final _barcodeController = TextEditingController();
   final _locationController = TextEditingController();
   final _stockController = TextEditingController();
@@ -31,8 +30,7 @@ class _ItemFormDialogState extends State<ItemFormDialog> {
     super.initState();
     if (widget.item != null) {
       _nameController.text = widget.item!.name;
-      _codeController.text = widget.item!.code;
-      _barcodeController.text = widget.item!.barcode ?? '';
+      _barcodeController.text = widget.item!.barcode;
       _locationController.text = widget.item!.location;
       _stockController.text = widget.item!.currentStock.toString();
       _descriptionController.text = widget.item!.description ?? '';
@@ -43,7 +41,6 @@ class _ItemFormDialogState extends State<ItemFormDialog> {
   @override
   void dispose() {
     _nameController.dispose();
-    _codeController.dispose();
     _barcodeController.dispose();
     _locationController.dispose();
     _stockController.dispose();
@@ -79,27 +76,11 @@ class _ItemFormDialogState extends State<ItemFormDialog> {
                 ),
                 const SizedBox(height: 16),
 
-                // Code field
-                TextFormField(
-                  controller: _codeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Kode Barang*',
-                    hintText: 'Masukkan kode barang',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Kode barang tidak boleh kosong';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
                 // Barcode field
                 TextFormField(
                   controller: _barcodeController,
                   decoration: InputDecoration(
-                    labelText: 'Barcode',
+                    labelText: 'Barcode*',
                     hintText: 'Masukkan barcode atau scan',
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -115,6 +96,12 @@ class _ItemFormDialogState extends State<ItemFormDialog> {
                       ],
                     ),
                   ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Barcode tidak boleh kosong';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -261,10 +248,7 @@ class _ItemFormDialogState extends State<ItemFormDialog> {
       final item = Item(
         id: widget.item?.id,
         name: _nameController.text.trim(),
-        code: _codeController.text.trim(),
-        barcode: _barcodeController.text.trim().isEmpty
-            ? null
-            : _barcodeController.text.trim(),
+        barcode: _barcodeController.text.trim(),
         categoryId: _selectedCategoryId!,
         location: _locationController.text.trim(),
         dateAdded: widget.item?.dateAdded ?? DateTime.now(),

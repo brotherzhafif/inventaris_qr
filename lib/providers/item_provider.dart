@@ -44,25 +44,14 @@ class ItemProvider extends ChangeNotifier {
 
   Future<bool> addItem(Item item, int userId) async {
     try {
-      // Check if code or barcode already exists
-      final existingItemByCode = await _databaseService.getItemByCode(
-        item.code,
+      // Check if barcode already exists
+      final existingItemByBarcode = await _databaseService.getItemByBarcode(
+        item.barcode,
       );
-      if (existingItemByCode != null) {
-        _errorMessage = 'Kode barang sudah digunakan';
+      if (existingItemByBarcode != null) {
+        _errorMessage = 'Barcode sudah digunakan';
         notifyListeners();
         return false;
-      }
-
-      if (item.barcode != null && item.barcode!.isNotEmpty) {
-        final existingItemByBarcode = await _databaseService.getItemByBarcode(
-          item.barcode!,
-        );
-        if (existingItemByBarcode != null) {
-          _errorMessage = 'Barcode sudah digunakan';
-          notifyListeners();
-          return false;
-        }
       }
 
       await _databaseService.insertItem(item);
@@ -173,8 +162,7 @@ class ItemProvider extends ChangeNotifier {
     final lowercaseQuery = query.toLowerCase();
     return _items.where((item) {
       return item.name.toLowerCase().contains(lowercaseQuery) ||
-          item.code.toLowerCase().contains(lowercaseQuery) ||
-          (item.barcode?.toLowerCase().contains(lowercaseQuery) ?? false) ||
+          item.barcode.toLowerCase().contains(lowercaseQuery) ||
           item.location.toLowerCase().contains(lowercaseQuery);
     }).toList();
   }

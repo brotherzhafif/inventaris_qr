@@ -100,7 +100,7 @@ class ExportService {
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text(item.code),
+                        child: pw.Text(item.barcode),
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(8),
@@ -293,10 +293,10 @@ class ExportService {
         item.name,
       );
       sheetObject.cell(CellIndex.indexByString("B$row")).value = TextCellValue(
-        item.code,
+        item.barcode,
       );
       sheetObject.cell(CellIndex.indexByString("C$row")).value = TextCellValue(
-        item.barcode ?? '',
+        item.barcode,
       );
       sheetObject.cell(CellIndex.indexByString("D$row")).value = TextCellValue(
         item.location,
@@ -365,8 +365,8 @@ class ExportService {
       sheetObject.cell(CellIndex.indexByString("B$row")).value = TextCellValue(
         transaction.type.displayName,
       );
-      sheetObject.cell(CellIndex.indexByString("C$row")).value = IntCellValue(
-        transaction.itemId,
+      sheetObject.cell(CellIndex.indexByString("C$row")).value = TextCellValue(
+        transaction.itemBarcode,
       );
       sheetObject.cell(CellIndex.indexByString("D$row")).value = IntCellValue(
         transaction.quantity,

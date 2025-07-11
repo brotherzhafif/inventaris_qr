@@ -58,7 +58,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         // Check if this barcode exists in items
         final itemProvider = Provider.of<ItemProvider>(context, listen: false);
         final existingItem = itemProvider.items
-            .where((item) => item.barcode == code || item.code == code)
+            .where((item) => item.barcode == code)
             .firstOrNull;
 
         if (mounted) {
@@ -82,7 +82,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [Text('Nama: $itemName'), Text('Kode: $code')],
+          children: [Text('Nama: $itemName'), Text('Barcode: $code')],
         ),
         actions: [
           TextButton(
@@ -110,7 +110,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Barcode Tidak Ditemukan'),
         content: Text(
-          'Kode: $code\n\nApakah Anda ingin menambahkan barang baru dengan barcode ini?',
+          'Barcode: $code\n\nApakah Anda ingin menambahkan barang baru dengan barcode ini?',
         ),
         actions: [
           TextButton(

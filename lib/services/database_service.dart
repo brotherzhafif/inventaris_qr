@@ -67,8 +67,7 @@ class DatabaseService {
       CREATE TABLE items(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        code TEXT UNIQUE NOT NULL,
-        barcode TEXT UNIQUE,
+        barcode TEXT UNIQUE NOT NULL,
         image_path TEXT,
         category_id INTEGER NOT NULL,
         location TEXT NOT NULL,
@@ -83,7 +82,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE transactions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        item_id INTEGER NOT NULL,
+        item_barcode TEXT NOT NULL,
         type TEXT NOT NULL,
         quantity INTEGER NOT NULL,
         date TEXT NOT NULL,
@@ -91,7 +90,7 @@ class DatabaseService {
         recipient TEXT,
         notes TEXT,
         user_id INTEGER NOT NULL,
-        FOREIGN KEY (item_id) REFERENCES items (id),
+        FOREIGN KEY (item_barcode) REFERENCES items (barcode),
         FOREIGN KEY (user_id) REFERENCES users (id)
       )
     ''');
@@ -336,6 +335,16 @@ class DatabaseService {
     );
   }
 
+  Future<int> updateItemStockByBarcode(String barcode, int newStock) async {
+    final db = await database;
+    return await db.update(
+      'items',
+      {'current_stock': newStock},
+      where: 'barcode = ?',
+      whereArgs: [barcode],
+    );
+  }
+
   Future<int> deleteItem(int id) async {
     final db = await database;
     return await db.delete('items', where: 'id = ?', whereArgs: [id]);
@@ -349,7 +358,7 @@ class DatabaseService {
     final transactionId = await db.insert('transactions', transaction.toMap());
 
     // Update item stock
-    final item = await getItemById(transaction.itemId);
+    final item = await getItemByBarcode(transaction.itemBarcode);
     if (item != null) {
       int newStock = item.currentStock;
       if (transaction.type == app_transaction.TransactionType.incoming) {
@@ -357,7 +366,7 @@ class DatabaseService {
       } else {
         newStock -= transaction.quantity;
       }
-      await updateItemStock(transaction.itemId, newStock);
+      await updateItemStockByBarcode(transaction.itemBarcode, newStock);
     }
 
     return transactionId;
@@ -372,14 +381,14 @@ class DatabaseService {
     );
   }
 
-  Future<List<app_transaction.Transaction>> getTransactionsByItem(
-    int itemId,
+  Future<List<app_transaction.Transaction>> getTransactionsByItemBarcode(
+    String itemBarcode,
   ) async {
     final db = await database;
     final maps = await db.query(
       'transactions',
-      where: 'item_id = ?',
-      whereArgs: [itemId],
+      where: 'item_barcode = ?',
+      whereArgs: [itemBarcode],
       orderBy: 'date DESC',
     );
     return List.generate(
@@ -441,7 +450,7 @@ class DatabaseService {
     final oldTransaction = await getTransactionById(transaction.id!);
     if (oldTransaction != null) {
       // Revert old transaction stock changes
-      final item = await getItemById(oldTransaction.itemId);
+      final item = await getItemByBarcode(oldTransaction.itemBarcode);
       if (item != null) {
         int newStock = item.currentStock;
         // Reverse the old transaction effect
@@ -458,7 +467,7 @@ class DatabaseService {
           newStock -= transaction.quantity;
         }
 
-        await updateItemStock(transaction.itemId, newStock);
+        await updateItemStockByBarcode(transaction.itemBarcode, newStock);
       }
     }
 
@@ -476,7 +485,7 @@ class DatabaseService {
     // Get the transaction to revert stock changes
     final transaction = await getTransactionById(id);
     if (transaction != null) {
-      final item = await getItemById(transaction.itemId);
+      final item = await getItemByBarcode(transaction.itemBarcode);
       if (item != null) {
         int newStock = item.currentStock;
         // Reverse the transaction effect
@@ -485,7 +494,7 @@ class DatabaseService {
         } else {
           newStock += transaction.quantity;
         }
-        await updateItemStock(transaction.itemId, newStock);
+        await updateItemStockByBarcode(transaction.itemBarcode, newStock);
       }
     }
 

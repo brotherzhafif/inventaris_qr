@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../models/transaction.dart' as app_transaction;
 import '../models/item.dart';
 import '../widgets/transaction_form_dialog.dart';
+import 'scanner_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -16,7 +17,8 @@ class TransactionsScreen extends StatefulWidget {
 }
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
-  app_transaction.TransactionType? _selectedType;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
   DateTime? _startDate;
   DateTime? _endDate;
   final _dateFormatter = DateFormat('dd/MM/yyyy');
@@ -37,52 +39,59 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Scaffold(
       body: Column(
         children: [
-          // Filter Section
+          // Search and Filter Section
           Container(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Type Filter
+                // Search Bar with QR Scan
                 Row(
                   children: [
                     Expanded(
-                      child:
-                          DropdownButtonFormField<
-                            app_transaction.TransactionType?
-                          >(
-                            value: _selectedType,
-                            decoration: InputDecoration(
-                              labelText: 'Filter Jenis',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            items: [
-                              const DropdownMenuItem<
-                                app_transaction.TransactionType?
-                              >(value: null, child: Text('Semua Jenis')),
-                              ...app_transaction.TransactionType.values.map(
-                                (type) =>
-                                    DropdownMenuItem<
-                                      app_transaction.TransactionType?
-                                    >(
-                                      value: type,
-                                      child: Text(type.displayName),
-                                    ),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedType = value;
-                              });
-                            },
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Cari barang, kategori dan kode...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                      ),
                     ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: _showDateRangePicker,
-                      icon: const Icon(Icons.date_range),
-                      label: const Text('Periode'),
+                    const SizedBox(width: 8),
+                    // QR Scan Button
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        onPressed: _scanQR,
+                        icon: const Icon(
+                          Icons.qr_code_scanner,
+                          color: Colors.white,
+                        ),
+                        tooltip: 'Scan QR Code',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                // Date Filter
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _showDateRangePicker,
+                        icon: const Icon(Icons.date_range),
+                        label: const Text('Filter Periode'),
+                      ),
                     ),
                   ],
                 ),
@@ -144,10 +153,34 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 List<app_transaction.Transaction> filteredTransactions =
                     transactionProvider.transactions;
 
-                if (_selectedType != null) {
-                  filteredTransactions = filteredTransactions
-                      .where((t) => t.type == _selectedType)
-                      .toList();
+                if (_searchQuery.isNotEmpty) {
+                  filteredTransactions = filteredTransactions.where((
+                    transaction,
+                  ) {
+                    // Search by item name or barcode
+                    final itemProvider = Provider.of<ItemProvider>(
+                      context,
+                      listen: false,
+                    );
+                    final item = itemProvider.items.firstWhere(
+                      (item) => item.barcode == transaction.itemBarcode,
+                      orElse: () => Item(
+                        barcode: '',
+                        name: '',
+                        categoryId: 0,
+                        location: '',
+                        dateAdded: DateTime.now(),
+                        currentStock: 0,
+                      ),
+                    );
+
+                    return item.name.toLowerCase().contains(
+                          _searchQuery.toLowerCase(),
+                        ) ||
+                        transaction.itemBarcode.toLowerCase().contains(
+                          _searchQuery.toLowerCase(),
+                        );
+                  }).toList();
                 }
 
                 if (_startDate != null && _endDate != null) {
@@ -169,8 +202,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          _selectedType != null || _startDate != null
-                              ? 'Tidak ada transaksi yang sesuai filter'
+                          _searchQuery.isNotEmpty || _startDate != null
+                              ? 'Tidak ada transaksi yang sesuai pencarian'
                               : 'Belum ada transaksi',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
@@ -204,6 +237,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           }
 
           return FloatingActionButton(
+            heroTag: "transactions_fab",
             onPressed: () => _showTransactionForm(),
             child: const Icon(Icons.add),
           );
@@ -216,11 +250,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Consumer<ItemProvider>(
       builder: (context, itemProvider, child) {
         final item = itemProvider.items.firstWhere(
-          (item) => item.id == transaction.itemId,
+          (item) => item.barcode == transaction.itemBarcode,
           orElse: () => Item(
-            id: 0,
             name: 'Item Tidak Ditemukan',
-            code: '-',
+            barcode: '-',
             categoryId: 0,
             location: '-',
             dateAdded: DateTime.now(),
@@ -289,7 +322,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildDetailRow('Barang', item.name),
-              _buildDetailRow('Kode Barang', item.code),
+              _buildDetailRow('Barcode', item.barcode),
               _buildDetailRow('Jenis', transaction.type.displayName),
               _buildDetailRow('Jumlah', '${transaction.quantity} unit'),
               _buildDetailRow(
@@ -442,5 +475,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         _endDate = picked.end;
       });
     }
+  }
+
+  void _scanQR() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ScannerScreen()),
+    );
+
+    if (result != null && result is String) {
+      setState(() {
+        _searchController.text = result;
+        _searchQuery = result;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }

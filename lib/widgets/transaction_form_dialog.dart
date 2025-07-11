@@ -24,7 +24,7 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
 
   app_transaction.TransactionType _selectedType =
       app_transaction.TransactionType.incoming;
-  int? _selectedItemId;
+  String? _selectedItemBarcode;
   bool _isLoading = false;
 
   @override
@@ -34,7 +34,7 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
       // Edit mode - populate fields
       final transaction = widget.transaction!;
       _selectedType = transaction.type;
-      _selectedItemId = transaction.itemId;
+      _selectedItemBarcode = transaction.itemBarcode;
       _quantityController.text = transaction.quantity.toString();
       _supplierController.text = transaction.supplier ?? '';
       _recipientController.text = transaction.recipient ?? '';
@@ -104,20 +104,20 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
                 // Item Selection
                 Consumer<ItemProvider>(
                   builder: (context, itemProvider, child) {
-                    return DropdownButtonFormField<int>(
-                      value: _selectedItemId,
+                    return DropdownButtonFormField<String>(
+                      value: _selectedItemBarcode,
                       decoration: const InputDecoration(
                         labelText: 'Pilih Barang*',
                       ),
                       items: itemProvider.items.map((item) {
-                        return DropdownMenuItem<int>(
-                          value: item.id,
+                        return DropdownMenuItem<String>(
+                          value: item.barcode,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(item.name),
                               Text(
-                                'Stok: ${item.currentStock} - ${item.code}',
+                                'Stok: ${item.currentStock} - ${item.barcode}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade600,
@@ -129,7 +129,7 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
                       }).toList(),
                       onChanged: (value) {
                         setState(() {
-                          _selectedItemId = value;
+                          _selectedItemBarcode = value;
                         });
                       },
                       validator: (value) {
@@ -163,17 +163,16 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
                     // Check stock for outgoing transactions
                     if (_selectedType ==
                             app_transaction.TransactionType.outgoing &&
-                        _selectedItemId != null) {
+                        _selectedItemBarcode != null) {
                       final itemProvider = Provider.of<ItemProvider>(
                         context,
                         listen: false,
                       );
                       final item = itemProvider.items.firstWhere(
-                        (item) => item.id == _selectedItemId,
+                        (item) => item.barcode == _selectedItemBarcode,
                         orElse: () => Item(
-                          id: 0,
                           name: '',
-                          code: '',
+                          barcode: '',
                           categoryId: 0,
                           location: '',
                           dateAdded: DateTime.now(),
@@ -260,7 +259,7 @@ class _TransactionFormDialogState extends State<TransactionFormDialog> {
 
       final transaction = app_transaction.Transaction(
         id: widget.transaction?.id, // Keep ID for edit mode
-        itemId: _selectedItemId!,
+        itemBarcode: _selectedItemBarcode!,
         type: _selectedType,
         quantity: int.parse(_quantityController.text),
         date:

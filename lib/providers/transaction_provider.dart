@@ -35,7 +35,9 @@ class TransactionProvider extends ChangeNotifier {
   ) async {
     try {
       // Check if item exists and has enough stock for outgoing transactions
-      final item = await _databaseService.getItemById(transaction.itemId);
+      final item = await _databaseService.getItemByBarcode(
+        transaction.itemBarcode,
+      );
       if (item == null) {
         _errorMessage = 'Barang tidak ditemukan';
         notifyListeners();
@@ -74,10 +76,10 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   Future<List<app_transaction.Transaction>> getTransactionsByItem(
-    int itemId,
+    String itemBarcode,
   ) async {
     try {
-      return await _databaseService.getTransactionsByItem(itemId);
+      return await _databaseService.getTransactionsByItemBarcode(itemBarcode);
     } catch (e) {
       _errorMessage = 'Gagal memuat riwayat transaksi: $e';
       notifyListeners();
@@ -155,7 +157,9 @@ class TransactionProvider extends ChangeNotifier {
   ) async {
     try {
       // Check if item exists and has enough stock for outgoing transactions
-      final item = await _databaseService.getItemById(transaction.itemId);
+      final item = await _databaseService.getItemByBarcode(
+        transaction.itemBarcode,
+      );
       if (item == null) {
         _errorMessage = 'Barang tidak ditemukan';
         notifyListeners();
@@ -224,7 +228,9 @@ class TransactionProvider extends ChangeNotifier {
         return false;
       }
 
-      final item = await _databaseService.getItemById(transaction.itemId);
+      final item = await _databaseService.getItemByBarcode(
+        transaction.itemBarcode,
+      );
       await _databaseService.deleteTransaction(transactionId);
 
       // Log activity

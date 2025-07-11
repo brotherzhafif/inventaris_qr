@@ -1,8 +1,7 @@
 class Item {
   final int? id;
   final String name;
-  final String code;
-  final String? barcode;
+  final String barcode;
   final String? imagePath;
   final int categoryId;
   final String location;
@@ -13,8 +12,7 @@ class Item {
   Item({
     this.id,
     required this.name,
-    required this.code,
-    this.barcode,
+    required this.barcode,
     this.imagePath,
     required this.categoryId,
     required this.location,
@@ -27,7 +25,6 @@ class Item {
     return {
       'id': id,
       'name': name,
-      'code': code,
       'barcode': barcode,
       'image_path': imagePath,
       'category_id': categoryId,
@@ -42,8 +39,7 @@ class Item {
     return Item(
       id: map['id']?.toInt(),
       name: map['name'] ?? '',
-      code: map['code'] ?? '',
-      barcode: map['barcode'],
+      barcode: map['barcode'] ?? '',
       imagePath: map['image_path'],
       categoryId: map['category_id']?.toInt() ?? 0,
       location: map['location'] ?? '',
@@ -56,7 +52,6 @@ class Item {
   Item copyWith({
     int? id,
     String? name,
-    String? code,
     String? barcode,
     String? imagePath,
     int? categoryId,
@@ -68,7 +63,6 @@ class Item {
     return Item(
       id: id ?? this.id,
       name: name ?? this.name,
-      code: code ?? this.code,
       barcode: barcode ?? this.barcode,
       imagePath: imagePath ?? this.imagePath,
       categoryId: categoryId ?? this.categoryId,
